@@ -1,0 +1,5 @@
+OS2ASM
+y
++startup0.obj +bigdiv.obj +bigmul.obj +bigrem.obj +bigshl.obj +bigshr.obj +dbgbrk.obj +sel.obj
+OS2ASM.MAP
+OS2ASM.LIB

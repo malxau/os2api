@@ -1,0 +1,6 @@
+**/*.exe
+**/*.obj
+**/*.map
+asm/*.lib
+crt/*.lib
+!asm/bin/*.obj

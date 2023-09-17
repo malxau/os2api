@@ -1,0 +1,11 @@
+LIBRARY KBDCALLS
+
+EXPORTS
+KbdCharIn
+KbdFlushBuffer
+KbdGetStatus
+KbdRegister
+KbdSetStatus
+KbdStringIn
+KbdPeek
+

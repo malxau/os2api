@@ -1,0 +1,11 @@
+LIBRARY NLS
+
+EXPORTS
+DosCaseMap
+DosGetCollate
+DosGetCtryInfo
+DosGetDBCSEv
+DosGetMessage
+DosInsMessage
+DosPutMessage
+

@@ -1,0 +1,5 @@
+OS2
+y
++doscalls.lib +kbdcalls.lib +nls.lib +viocalls.lib
+OS2.MAP
+OS2.LIB
