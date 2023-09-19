@@ -12,4 +12,4 @@ COBJS = halloc.obj      \
 os2crt.lib: $(COBJS) ..\asm\os2asm.lib os2crt.rsp
     @echo $@
     @erase $@ 2>NUL
-	@$(LIB) $(LIBFLAGS) @os2crt.rsp
+	@$(OBJLIB) $(LIBFLAGS) @os2crt.rsp

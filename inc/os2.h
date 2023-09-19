@@ -87,6 +87,8 @@ typedef    HVIO FAR*      PHVIO;
 typedef    WORD           SYSERR;
 typedef    SYSERR FAR*    PSYSERR;
 
+#define    FIELD_OFFSET(type, field) ((WORD)&(((type NEAR *)0)->field))
+
 #define    TRUE           (1)
 #define    FALSE          (0)
 
@@ -198,7 +200,7 @@ typedef    FILEFINDBUF FAR* PFILEFINDBUF;
 typedef struct _FSALLOCATE {
     DWORD FileSystemId;
     DWORD SectorsPerAllocationUnit;
-    DWORD TotalAllocationUnits;    
+    DWORD TotalAllocationUnits;
     DWORD AllocationUnitsAvailable;
     WORD BytesPerSector;
 } FSALLOCATE;
@@ -211,6 +213,7 @@ typedef    FSALLOCATE FAR* PFSALLOCATE;
 
 typedef    VOID APIENTRY FN(VOID);
 typedef    FN FAR * PFN;
+typedef    PFN FAR * PPFN;
 
 typedef    VOID APIENTRY FNSIGHANDLER(WORD, WORD);
 typedef    FNSIGHANDLER FAR * PFNSIGHANDLER;
@@ -881,7 +884,11 @@ SYSERR APIENTRY DosGetMachineMode(PBYTE pMachineMode);
 
 SYSERR APIENTRY DosGetMessage(PCHAR FAR * pMsgParamArray, WORD wMsgParamCount, PCHAR pszMsg, WORD wMsgLength, WORD wMsgNumber, PSZ pszFileName, WORD pwWritten);
 
+SYSERR APIENTRY DosGetModHandle(PSZ pszModule, PHMODULE phModule);
+
 SYSERR APIENTRY DosGetPID(PPIDINFO pPidInfo);
+
+SYSERR APIENTRY DosGetProcAddr(HMODULE hModule, PSZ pszProcName, PPFN ppFn);
 
 SYSERR APIENTRY DosGetVersion(PWORD wVersion);
 
@@ -955,7 +962,7 @@ SYSERR APIENTRY DosSubSet(SEL selector, WORD wfFlags, WORD wSize);
 
 SYSERR APIENTRY DosWrite(HFILE hFile, PVOID pBuffer, WORD wBufferSize, PWORD pwBytesWritten);
 
-SYSERR APIENTRY KbdCharIn(PKBDKEYINFO pCharData, WORD wWait, PHKBD phKbd);
+SYSERR APIENTRY KbdCharIn(PKBDKEYINFO pCharData, WORD wWait, HKBD phKbd);
 
 SYSERR APIENTRY KbdFlushBuffer(HKBD hKbd);
 

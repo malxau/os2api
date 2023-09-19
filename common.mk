@@ -9,7 +9,7 @@ PDB=1
 
 ML=ml.exe
 CC=cl.exe
-LIB=lib.exe
+OBJLIB=lib.exe
 LINK=link.exe
 IMPLIB=implib.exe
 BIND=bind.exe
@@ -44,7 +44,7 @@ CFLAGS=$(CFLAGS) -Z7
 LDFLAGS=$(LDFLAGS) /codeview
 !ENDIF
 
-DEPS=..\asm\os2asm.lib ..\crt\os2crt.lib
+DEPS=..\asm\os2asm.lib ..\crt\os2crt.lib ..\dos\dosbind.lib
 
 clean:
 	-@erase *.exe    2>NUL

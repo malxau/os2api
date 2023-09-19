@@ -26,6 +26,8 @@ DosGetDateTime        @33
 DosGetEnv             @91
 DosGetHugeShift       @41
 DosGetMachineMode     @49
+DosGetModHandle       @47
+DosGetProcAddr        @45
 DosGetPID             @94
 DosGetVersion         @92
 DosHoldSignal         @13

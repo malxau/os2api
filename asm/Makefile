@@ -14,4 +14,4 @@ ASMOBJS = startup0.obj    \
 os2asm.lib: $(ASMOBJS) os2asm.rsp
     @echo $@
     @erase $@ 2>NUL
-	@$(LIB) $(LIBFLAGS) @os2asm.rsp
+	@$(OBJLIB) $(LIBFLAGS) @os2asm.rsp

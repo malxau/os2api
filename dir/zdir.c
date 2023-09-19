@@ -247,7 +247,7 @@ ZDirNewline(
     WORD Line;
     WORD BlankCell;
     HVIO hvio;
-    
+
     hvio = 0;
     Line = *CursorLine;
 
@@ -259,7 +259,7 @@ ZDirNewline(
     Line++;
     if (Line >= ModeInfo->wRow) {
         BlankCell = 0x07 << 8 | ' ';
-        VioScrollUp(1, 0, Line - 1, ModeInfo->wColumn - 1, 1, &BlankCell, hvio);
+        VioScrollUp(0, 0, Line - 1, ModeInfo->wColumn - 1, 1, &BlankCell, hvio);
         Line--;
     }
     VioSetCurPos(Line, 0, hvio);
@@ -292,13 +292,9 @@ ZDirPasteStrAndPad (
     return TRUE;
 }
 
-
-#define FIELD_OFFSET(type, field) ((WORD)&(((type NEAR *)0)->field))
-
-
 WORD
 ZDirCollectFiles(
-    PSZ SearchCriteria,
+    PSZ UserSearchCriteria,
     PVOID Pool,
     PFILEFINDBUF * SortTable,
     PWORD FilesFound
@@ -309,22 +305,92 @@ ZDirCollectFiles(
     WORD FindFirstContext;
     FILEFINDBUF StackFileBuf;
     PFILEFINDBUF HeapFileBuf;
+    PSZ SearchCriteria;
+    WORD Index;
     WORD Err;
     WORD Result;
     WORD SizeRequired;
+    BOOL WildFound;
 
-    DirHandle = 1;
     FileCount = 0;
-    FindFirstContext = 1;
+    SearchCriteria = UserSearchCriteria;
+    Result = 0;
 
-    Err = DosFindFirst(SearchCriteria, &DirHandle, FILE_DIRECTORY, &StackFileBuf, sizeof(StackFileBuf), &FindFirstContext, 0);
-    if (Err != NO_ERROR) {
-        printf("Error %i\r\n", Err);
-        *FilesFound = 0;
-        return 1;
+    while(TRUE) {
+        DirHandle = 1;
+        FindFirstContext = 1;
+        Err = DosFindFirst(SearchCriteria, &DirHandle, FILE_HIDDEN | FILE_SYSTEM | FILE_DIRECTORY, &StackFileBuf, sizeof(StackFileBuf), &FindFirstContext, 0);
+        if (Err != NO_ERROR &&
+            Err != ERROR_NO_MORE_FILES &&
+            Err != ERROR_PATH_NOT_FOUND) {
+
+            printf("Error %i: %s\r\n", Err, SearchCriteria);
+            Result = 1;
+            break;
+        }
+
+        //
+        //  If the string doesn't contain a wildcard, and it matches a
+        //  directory (should only match one), append a \*.* and look again.
+        //
+
+        WildFound = FALSE;
+        for (Index = 0; SearchCriteria[Index] != '\0'; Index++) {
+            if (SearchCriteria[Index] == '?' || SearchCriteria[Index] == '*') {
+                WildFound = TRUE;
+            }
+        }
+
+        //
+        //  ERROR_NO_MORE_FILES can be returned for a root directory, where
+        //  unlike other directories, there's no way to return the directory
+        //  itself.  However it also might be a specific object that doesn't
+        //  exist.  DOS uses ERROR_PATH_NOT_FOUND for this condition.
+        //
+
+        if (Err == ERROR_NO_MORE_FILES || Err == ERROR_PATH_NOT_FOUND) {
+
+            //
+            //  Truncate trailing slashes.  If this results in an empty
+            //  string, the criteria had to be for the root (and it can be
+            //  added back as start of \*.* below), or if it results in a
+            //  drive letter this is a root for some other drive (also
+            //  handled the same way.)
+            //
+
+            while (Index > 0 &&
+                   (SearchCriteria[Index - 1] == '\\' || SearchCriteria[Index - 1] == '/')) {
+               Index--;
+            }
+            SearchCriteria[Index] = '\0';
+
+            if (Index > 2 || (Index == 2 && SearchCriteria[1] != ':')) {
+                printf("No matching files found.\r\n");
+                Result = 1;
+                break;
+            }
+        } else if (WildFound || ((StackFileBuf.attrFile & FILE_DIRECTORY) == 0)) {
+            break;
+        }
+
+        SearchCriteria = HugePoolAlloc(Pool, Index + sizeof("\\*.*"));
+        if (SearchCriteria == NULL) {
+            printf("out of memory\r\n");
+            Result = 1;
+            break;
+        }
+
+        sprintf(SearchCriteria, "%s\\*.*", UserSearchCriteria);
     }
 
-    Result = 0;
+    if (SearchCriteria != UserSearchCriteria) {
+        HugePoolFree(SearchCriteria);
+    }
+
+    if (Result != 0) {
+        *FilesFound = 0;
+        return Result;
+    }
 
     do {
         SizeRequired = FIELD_OFFSET(FILEFINDBUF, achName) + StackFileBuf.cchName + 1;
@@ -393,7 +459,7 @@ UCHAR
 ZDirAttributesForFile(
     PFILEFINDBUF fb
     )
-{                   
+{
     WORD Index;
     PSZ Ext;
 
@@ -424,6 +490,22 @@ ZDirAttributesForFile(
 
     return 0x07;
 }
+
+
+BOOL
+ZDirIsPharLap(VOID)
+{
+    HMODULE hPhapi;
+    WORD Err;
+
+    Err = DosGetModHandle("PHAPI", &hPhapi);
+    if (Err != NO_ERROR) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 
 WORD
 ZDirGenerateSummary(
@@ -461,7 +543,15 @@ ZDirGenerateSummary(
     }
 
     LineIndex = 0;
-    StrLen = sprintf(Str, " %i", TotalFiles);
+
+    //
+    //  This space is so that command.com inherits this color when it
+    //  scrolls after the program exits
+    //
+    StrLen = sizeof(" ") - 1;
+    ZDirPasteStrAndPad(&Line[LineIndex], " ", 0x7, StrLen, StrLen);
+    LineIndex = LineIndex + StrLen;
+    StrLen = sprintf(Str, "%i", TotalFiles);
     ZDirPasteStrAndPad(&Line[LineIndex], Str, 0xA, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
     StrLen = sizeof(" files,") - 1;
@@ -470,8 +560,16 @@ ZDirGenerateSummary(
     StrLen = sprintf(Str, " %i", TotalDirectories);
     ZDirPasteStrAndPad(&Line[LineIndex], Str, 0xA, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
-    StrLen = sizeof(" dirs, ") - 1;
-    ZDirPasteStrAndPad(&Line[LineIndex], " dirs, ", 0x7, StrLen, StrLen);
+    StrLen = sizeof(" dirs") - 1;
+    ZDirPasteStrAndPad(&Line[LineIndex], " dirs", 0x7, StrLen, StrLen);
+    LineIndex = LineIndex + StrLen;
+
+    if (ZDirIsPharLap()) {
+        return LineIndex;
+    }
+
+    StrLen = sizeof(", ") - 1;
+    ZDirPasteStrAndPad(&Line[LineIndex], ", ", 0x7, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
     ZDirFileSizeToString(Str, TotalUsed);
     StrLen = 5;
@@ -525,7 +623,8 @@ UCHAR ZDirLineElements[] = {196, 194, 193, 179};
 WORD
 ZDirDisplayFiles(
     PFILEFINDBUF * SortTable,
-    WORD FileCount
+    WORD FileCount,
+    BOOL PauseEnabled
     )
 {
     PFILEFINDBUF fb;
@@ -539,6 +638,7 @@ ZDirDisplayFiles(
     WORD MetadataWidth;
     WORD BufferRows;
     WORD ColumnWidth;
+    WORD LinesThisPage;
     WORD Columns;
     WORD GridCellCount;
     WORD Err;
@@ -608,6 +708,7 @@ ZDirDisplayFiles(
     GridCellCount = BufferRows * Columns;
     ActiveColumn = 0;
     CurrentChar = 0;
+    LinesThisPage = 1;
 
     for (Index = 0; Index < GridCellCount; Index++) {
 
@@ -655,6 +756,21 @@ ZDirDisplayFiles(
             CurrentChar = 0;
             ActiveColumn = 0;
             ZDirNewline(&CursorRow, &ModeInfo);
+            LinesThisPage++;
+            if (PauseEnabled && (LinesThisPage == ModeInfo.wRow - 1)) {
+                WORD StrLen;
+                KBDKEYINFO CharData;
+                StrLen = sizeof("Press any key to continue...") - 1;
+                ZDirPasteStrAndPad(Line, "Press any key to continue...", 0xD, StrLen, StrLen);
+                ZDirWrite(Line, StrLen);
+                VioSetCurPos(CursorRow, StrLen, hvio);
+                KbdCharIn(&CharData, 0, 0);
+                if (CharData.cChar == 'q') {
+                    return NO_ERROR;
+                }
+                LinesThisPage = 0;
+                ZDirNewline(&CursorRow, &ModeInfo);
+            }
         } else {
             Line[CurrentChar].Char = ZDirLineElements[ZDIR_LINE_ELEMENT_VERT];
             Line[CurrentChar].Attr = ZDIR_GRID_COLOR;
@@ -682,7 +798,7 @@ ZDirDisplayFiles(
     Index = ZDirGenerateSummary(Line, SortTable, FileCount);
     if (Index > 0) {
         ZDirWrite(Line, Index);
-        
+
         //
         //  Move the cursor to after the summary on the same line.  This
         //  hints to Yori to move to the next line; other shells do this
@@ -690,7 +806,6 @@ ZDirDisplayFiles(
         //
 
         VioSetCurPos(CursorRow, Index, hvio);
-        // ZDirNewline(&CursorRow, &ModeInfo);
     }
 
     return NO_ERROR;
@@ -710,6 +825,55 @@ ZDirFreeFiles(
     }
 }
 
+BOOL
+ZDirIsCommandLineOptionChar(
+    UCHAR Char
+    )
+{
+    if (Char == '/' || Char == '-') {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+VOID
+ZDirHelp(VOID)
+{
+    printf("ZDir [-?] [-license] [-p|-pn] [FileSpec]\r\n\r\n");
+    printf("  -p    Pause after each screen\r\n");
+    printf("  -pn   Don't pause after each screen\r\n");
+}
+
+const
+CHAR strMitLicenseText[] =
+     "Copyright (c) 2023 Malcolm J. Smith\r\n"
+     "\r\n"
+     "Permission is hereby granted, free of charge, to any person obtaining a copy\r\n"
+     "of this software and associated documentation files (the \"Software\"), to deal\r\n"
+     "in the Software without restriction, including without limitation the rights\r\n"
+     "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\r\n"
+     "copies of the Software, and to permit persons to whom the Software is\r\n"
+     "furnished to do so, subject to the following conditions:\r\n"
+     "\n"
+     "The above copyright notice and this permission notice shall be included in\r\n"
+     "all copies or substantial portions of the Software.\r\n"
+     "\n"
+     "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\r\n"
+     "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\r\n"
+     "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\r\n"
+     "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\r\n"
+     "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\r\n"
+     "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\r\n"
+     "THE SOFTWARE.\r\n";
+
+VOID
+ZDirLicense(VOID)
+{
+    WORD BytesWritten;
+    DosWrite(1, (PSZ)strMitLicenseText, sizeof(strMitLicenseText) - 1, &BytesWritten);
+}
+
+
 WORD CDECL
 main(
     WORD argc,
@@ -720,12 +884,39 @@ main(
     PFILEFINDBUF * SortTable;
     PVOID Pool;
     WORD ArgIndex;
-    PSZ SearchCriteria;
+    PSZ Arg;
     WORD Result;
+    WORD StartArg;
+    BOOL OutputGenerated;
+    BOOL PauseEnabled;
 
     Pool = HugePoolAllocNewPool(1ul * 1024 * 1024);
     if (Pool == NULL) {
         return 1;
+    }
+
+    PauseEnabled = TRUE;
+
+    StartArg = 0;
+    for (ArgIndex = 1; ArgIndex < argc; ArgIndex++) {
+        Arg = argv[ArgIndex];
+        if (ZDirIsCommandLineOptionChar(Arg[0])) {
+            if (stricmp(&Arg[1], "?") == 0) {
+                ZDirHelp();
+                HugePoolFreePool(Pool);
+                return Result;
+            } else if (stricmp(&Arg[1], "license") == 0) {
+                ZDirLicense();
+                HugePoolFreePool(Pool);
+                return Result;
+            } else if (stricmp(&Arg[1], "p") == 0) {
+                PauseEnabled = TRUE;
+            } else if (stricmp(&Arg[1], "pn") == 0) {
+                PauseEnabled = FALSE;
+            }
+        } else {
+            StartArg = ArgIndex;
+        }
     }
 
     SortTable = HugePoolAlloc(Pool, ZDIR_MAX_FILES * sizeof(PFILEFINDBUF));
@@ -733,22 +924,41 @@ main(
         return 1;
     }
 
-    Result = 0;
+    //
+    //  If no usable argument was found, start the loop beyond all of the
+    //  arguments, which causes it to default to *.*
+    //
 
-    ArgIndex = 1;
+    if (StartArg == 0) {
+        StartArg = argc;
+    }
+
+    Result = 0;
+    ArgIndex = StartArg;
+    OutputGenerated = FALSE;
+
     do {
         if (ArgIndex < argc) {
-            SearchCriteria = argv[ArgIndex];
+            Arg = argv[ArgIndex];
+            if (ZDirIsCommandLineOptionChar(Arg[0])) {
+                ArgIndex++;
+                continue;
+            }
+        } else if (!OutputGenerated) {
+            Arg = "*.*";
         } else {
-            SearchCriteria = "*.*";
+            break;
         }
-        Result = ZDirCollectFiles(SearchCriteria, Pool, SortTable, &FilesFound);
+
+        OutputGenerated = TRUE;
+
+        Result = ZDirCollectFiles(Arg, Pool, SortTable, &FilesFound);
         if (Result != NO_ERROR) {
             break;
         }
 
         ZDirSortFiles(SortTable, FilesFound, 1);
-        Result = ZDirDisplayFiles(SortTable, FilesFound);
+        Result = ZDirDisplayFiles(SortTable, FilesFound, PauseEnabled);
         if (Result != NO_ERROR) {
             break;
         }

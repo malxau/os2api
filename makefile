@@ -1,7 +1,7 @@
 DEBUG=1
 PDB=1
 
-DIRS=lib asm crt dir
+DIRS=lib asm crt dos dir
 
 !IFDEF _YMAKE_VER
 all[dirs target=all]: $(DIRS)
