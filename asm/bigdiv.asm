@@ -110,7 +110,7 @@ mov [bx], ax
 
 mov sp, bp
 pop bp
-ret
+ret 6
 
 __aFNauldiv endp
 

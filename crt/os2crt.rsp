@@ -1,5 +1,5 @@
 OS2CRT
 y
-+..\asm\os2asm.lib +startup1.obj +halloc.obj +mem.obj +printf.obj +salloc.obj +string.obj
++..\asm\os2asm.lib +startup1.obj +halloc.obj +malloc.obj +mem.obj +printf.obj +salloc.obj +string.obj
 OS2CRT.MAP
 OS2CRT.LIB

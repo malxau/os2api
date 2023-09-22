@@ -88,11 +88,11 @@ printf(
     )
 {
     va_list marker;
-    CHAR buf[100];
+    CHAR buf[200];
     int out_len;
 
     va_start( marker, szFmt );
-    out_len = vsprintf(buf, (WORD)-1, szFmt, marker);
+    out_len = vsprintf(buf, sizeof(buf), szFmt, marker);
     va_end( marker );
 
     if (out_len != -1 && out_len < sizeof(buf)) {

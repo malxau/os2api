@@ -9,10 +9,11 @@ This repo is a package of tools for writing 16 bit OS/2 programs with Visual C++
 
 ## What's included?
 
-- A completely new OS/2 header file, `inc/os2.h` which is a recreation of the API based on documentation, internet research, and assembly includes to be new and unencombered.
-- A new import library, `lib/os2.lib`, generated here, also new and unencombered.
-- A trivial C runtime library, heavily patterned on minicrt, so that it's possible to do common C operations.  This isn't as nice as a "real" one, but...well, it's unencombered.
-- A demonstration program putting it all together.
+- inc - A completely new OS/2 header file, `inc/os2.h` which is a recreation of the API based on documentation, internet research, and assembly includes to be new and unencombered.
+- lib - A new import library, `lib/os2.lib`, generated here, also new and unencombered.
+- asm, crt - A trivial C runtime library, heavily patterned on minicrt, so that it's possible to do common C operations.  This isn't as nice as a "real" one, but...well, it's unencombered.
+- dos - A library to extend the Family API on DOS.
+- dir - A demonstration program putting it all together.
 
 ## Building
 

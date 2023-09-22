@@ -3,6 +3,7 @@ all: os2crt.lib
 !INCLUDE "..\common.mk"
 
 COBJS = halloc.obj      \
+        malloc.obj      \
         mem.obj         \
         printf.obj      \
         salloc.obj      \

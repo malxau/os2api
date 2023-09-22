@@ -1,7 +1,7 @@
 /**
- * @file crt/os2crt.h
+ * @file crt/crtpriv.h
  *
- * Declarations for a mini OS/2 C runtime library.
+ * Private declarations not intended for use outside the CRT module.
  *
  * Copyright (c) 2023 Malcolm J. Smith
  *
@@ -27,109 +27,64 @@
 #include <os2asm.h>
 
 PVOID
-malloc(
+HugePoolAllocNewPool(VOID);
+
+VOID
+HugePoolFreePool(
+    PVOID pool
+    );
+
+VOID
+HugePoolDump(
+    PVOID pool
+    );
+
+PVOID
+HugePoolAlloc(
+    PVOID pool,
     WORD sizeInBytes
     );
 
 VOID
-free(
+HugePoolFree(
     PVOID ptr
     );
 
-int
-sprintf_s(
-    PSZ szDest,
-    WORD len,
-    PSZ szFmt,
-    ...
+PVOID
+SmallPoolAllocNewPool(
+    WORD requestedBytes
     );
 
-int
-sprintf(
-    PSZ szDest,
-    PSZ szFmt,
-    ...
+VOID
+SmallPoolFreePool(
+    PVOID pool
     );
 
-int
-sprintf_sz(
-    PSZ szFmt,
-    ...
+BOOL
+SmallPoolFreePoolIfEmpty(
+    PVOID pool
     );
 
-int
-printf(
-    PSZ szFmt,
-    ...
+VOID
+SmallPoolDump(
+    PVOID pool
     );
 
 PVOID
-memcpy(PVOID dest, PVOID src, WORD len);
+SmallPoolAlloc(
+    PVOID pool,
+    WORD sizeInBytes
+    );
 
-PVOID
-memmove(PVOID dest, PVOID src, WORD len);
+VOID
+SmallPoolFree(
+    PVOID ptr
+    );
 
-PVOID
-memset(PVOID dest, CHAR c, WORD len);
+BOOL
+malloc_init(VOID);
 
-SHORT
-memcmp(PVOID buf1, PVOID buf2, WORD len);
-
-SHORT
-atoi (PSZ str);
-
-PSZ
-strcat_s(PSZ dest, WORD len, const PSZ src);
-
-PSZ
-strncat(PSZ dest, const PSZ src, WORD len);
-
-PSZ
-strchr(PSZ str, UCHAR ch);
-
-PSZ
-strrchr(PSZ str, UCHAR ch);
-
-WORD
-strlen(PSZ str);
-
-PSZ
-strstr(const PSZ str, PSZ search);
-
-UCHAR
-toupper(UCHAR c);
-
-UCHAR
-tolower(UCHAR c);
-
-PSZ
-strupr(PSZ str);
-
-PSZ
-strlwr(PSZ str);
-
-SHORT
-strncmp(PSZ str1, PSZ str2, WORD count);
-
-SHORT
-strcmp(PSZ str1, PSZ str2);
-
-SHORT
-strnicmp(PSZ str1, PSZ str2, WORD count);
-
-SHORT
-stricmp(PSZ str1, PSZ str2);
-
-PSZ
-strtok_s(PSZ str, PSZ match, PSZ * context);
-
-PSZ
-strtok(PSZ str, PSZ match);
-
-SHORT
-strspn(PSZ str, PSZ chars);
-
-SHORT
-strcspn(PSZ str, PSZ match);
+VOID
+malloc_cleanup(VOID);
 
 // vim:sw=4:ts=4:et:

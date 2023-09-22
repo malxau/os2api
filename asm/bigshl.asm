@@ -86,4 +86,40 @@ __aFlshl proc
 jmp __aFulshl
 __aFlshl endp
 
+; "Assignment" function that just does the above and puts the result in a
+; pointer.  I can't believe the compiler is too stupid to do this itself.
+; The compiler is smart enough to know that ds is initialized, so it can
+; invoke the "near" version of code in a purely far model program.
+
+public __aFNaulshl
+__aFNaulshl proc
+
+push bp
+mov bp, sp
+
+; VOID
+; __aFNaulshl(
+;     DWORD __near * Value, [BP + 6],
+;     WORD ShiftCount [BP + 8]
+; );
+
+push bx
+mov bx, [bp + 6]
+mov ax, [bx]
+mov dx, [bx + 2]
+mov cx, [bp + 8]
+
+call __aFulshl
+
+mov [bx + 2], dx
+mov [bx], ax
+
+pop bx
+mov sp, bp
+pop bp
+ret 4
+
+__aFNaulshl endp
+
+
 END

@@ -118,7 +118,7 @@ mov [bx], ax
 pop bx
 mov sp, bp
 pop bp
-ret
+ret 4
 
 __aFNaulshr endp
 

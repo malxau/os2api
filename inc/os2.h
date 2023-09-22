@@ -59,9 +59,12 @@ typedef    BOOL FAR*      PBOOL;
 
 typedef    BYTE FAR*      PSZ;
 typedef    BYTE FAR*      PCH;
+typedef    PSZ FAR*       PPSZ;
+typedef    PCH FAR*       PPCH;
 
 typedef    void           VOID;
 typedef    VOID FAR*      PVOID;
+typedef    PVOID FAR*     PPVOID;
 
 typedef    WORD           HFILE;
 typedef    HFILE FAR*     PHFILE;

@@ -27,6 +27,7 @@
 
 #include <os2.h>
 #include <os2crt.h>
+#include <crtpriv.h>
 
 #define SALLOC_DBG 0
 
@@ -110,12 +111,11 @@ SmallPoolAllocNewPool(
     return poolHdr;
 }
 
-VOID
-SmallPoolFreePool(
+BOOL
+SmallPoolIsPoolEmpty(
     PVOID pool
     )
 {
-    SEL selector;
     PSMALL_POOL_HDR poolHdr;
     PALLOC_HDR allocHdr;
 
@@ -125,13 +125,42 @@ SmallPoolFreePool(
     if (AllocHdrIsAllocated(allocHdr) ||
         !AllocHdrBeyondPool(poolHdr, AllocHdrNextHdr(allocHdr))) {
 
-        printf("alloc: pool %p freed but not empty\r\n", poolHdr);
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+VOID
+SmallPoolFreePool(
+    PVOID pool
+    )
+{
+    SEL selector;
+
+    if (!SmallPoolIsPoolEmpty(pool)) {
+#if SALLOC_DBG
+        printf("alloc: pool %p freed but not empty\r\n", pool);
+#endif
         SmallPoolDump(pool);
         DebugBreak();
     }
 
     selector = FarPtrToSel(pool);
     DosFreeSeg(selector);
+}
+
+BOOL
+SmallPoolFreePoolIfEmpty(
+    PVOID pool
+    )
+{
+    if (SmallPoolIsPoolEmpty(pool)) {
+        SmallPoolFreePool(pool);
+        return TRUE;
+    }
+
+    return FALSE;
 }
 
 VOID
@@ -179,7 +208,7 @@ SmallPoolAllocStartOffset(
     }
 
 #if SALLOC_DBG
-    printf("alloc: searching %p for %i bytes startOffset %04x\r\n",
+    printf("alloc: searching %lp for %i bytes startOffset %04x\r\n",
         poolHdr,
         sizeToAllocate,
         startOffset);
@@ -192,7 +221,7 @@ SmallPoolAllocStartOffset(
     while (TRUE) {
 
 #if SALLOC_DBG
-        printf("alloc:     hdr %p prev %04x next %04x\r\n", allocHdr, allocHdr->OffsetToPrev, allocHdr->OffsetToNext);
+        printf("alloc:     hdr %lp prev %04x next %04x\r\n", allocHdr, allocHdr->OffsetToPrev, allocHdr->OffsetToNext);
 #endif
 
         if (!AllocHdrIsAllocated(allocHdr)) {
@@ -207,7 +236,7 @@ SmallPoolAllocStartOffset(
 
             if (usableBytes >= sizeToAllocate) {
 #if SALLOC_DBG
-                printf("alloc:     found usable hdr %p usable bytes %i\r\n", allocHdr, usableBytes);
+                printf("alloc:     found usable hdr %lp usable bytes %i\r\n", allocHdr, usableBytes);
 #endif
                 break;
             }
@@ -216,28 +245,32 @@ SmallPoolAllocStartOffset(
         nextHdr = AllocHdrNextHdr(allocHdr);
         if (AllocHdrBeyondPool(poolHdr, nextHdr)) {
 #if SALLOC_DBG
-            printf("alloc:     hdr %p beyond pool end\r\n", nextHdr);
+            printf("alloc:     hdr %lp beyond pool end\r\n", nextHdr);
 #endif
             allocHdr = NULL;
             break;
         }
 
         if (nextHdr == allocHdr) {
-            printf("alloc: allocHdr %p zero length, prev %04x next %04x\r\n",
+#if SALLOC_DBG
+            printf("alloc: allocHdr %lp zero length, prev %04x next %04x\r\n",
                 allocHdr,
                 allocHdr->OffsetToPrev,
                 allocHdr->OffsetToNext);
+#endif
             DebugBreak();
             allocHdr = NULL;
             break;
         }
 
         if (AllocHdrOffsetToNext(allocHdr) != AllocHdrOffsetToPrev(nextHdr)) {
-            printf("alloc: prev/next mismatch, hdr %p next %04x nextHdr %p prev %04x\r\n",
+#if SALLOC_DBG
+            printf("alloc: prev/next mismatch, hdr %lp next %04x nextHdr %lp prev %04x\r\n",
                 allocHdr,
                 AllocHdrOffsetToNext(allocHdr),
                 nextHdr,
                 AllocHdrOffsetToPrev(nextHdr));
+#endif
             DebugBreak();
             allocHdr = NULL;
             break;
@@ -249,7 +282,7 @@ SmallPoolAllocStartOffset(
     if (allocHdr == NULL) {
         if (entireScan) {
 #if SALLOC_DBG
-            printf("alloc:     setting %08p LargestFreeBlock to %i bytes\r\n",
+            printf("alloc:     setting %08lp LargestFreeBlock to %i bytes\r\n",
                 poolHdr,
                 largestUsable);
 #endif
@@ -279,7 +312,7 @@ SmallPoolAlloc(
     poolHdr = (PSMALL_POOL_HDR)pool;
     if (sizeInBytes > poolHdr->LargestFreeBlock) {
 #if SALLOC_DBG
-        printf("alloc: %p has largest free block %i bytes, failing %i request\r\n",
+        printf("alloc: %lp has largest free block %i bytes, failing %i request\r\n",
             poolHdr,
             poolHdr->LargestFreeBlock,
             sizeInBytes);
@@ -315,8 +348,7 @@ SmallPoolAlloc(
     }
 
 #if SALLOC_DBG
-    printf("alloc:     poolHdr %p allocHdr %p\r\n", poolHdr, allocHdr);
-    // DebugBreak();
+    printf("alloc:     poolHdr %lp allocHdr %lp\r\n", poolHdr, allocHdr);
 #endif
     hdrOffset = AllocHdrOffsetFromStart(poolHdr, allocHdr);
     usableBytes = AllocHdrUsableBytes(allocHdr);
@@ -327,10 +359,13 @@ SmallPoolAlloc(
     //  the header to make the split worthwhile.
     //
 
-    if (usableBytes + sizeof(ALLOC_HDR) > sizeToAllocate) {
+    if (usableBytes > sizeToAllocate + sizeof(ALLOC_HDR)) {
         PALLOC_HDR nextNextHdr;
 
         nextHdr = (PALLOC_HDR)((PUCHAR)allocHdr + sizeof(ALLOC_HDR) + sizeToAllocate);
+#if SALLOC_DBG
+        printf("alloc:     set nextHdr %p usableBytes %i sizeToAllocate %i\r\n", nextHdr, usableBytes, sizeToAllocate);
+#endif
         nextHdr->OffsetToPrev = sizeToAllocate + sizeof(ALLOC_HDR);
         nextHdr->OffsetToNext = allocHdr->OffsetToNext - nextHdr->OffsetToPrev;
 #if SALLOC_DBG
@@ -360,7 +395,7 @@ SmallPoolAlloc(
     AllocHdrMarkAllocated(allocHdr);
     userData = AllocHdrUserDataFromHdr(allocHdr);
 #if SALLOC_DBG
-    printf("alloc: returning %p, hdr %p prev %04x next %04x\r\n",
+    printf("alloc: returning %lp, hdr %lp prev %04x next %04x\r\n",
         userData,
         allocHdr,
         allocHdr->OffsetToPrev,
@@ -387,7 +422,9 @@ SmallPoolFree(
 
     allocHdr = AllocHdrHdrFromUserData(ptr);
     if (!AllocHdrIsAllocated(allocHdr)) {
+#if SALLOC_DBG
         printf("free: allocHdr %p not allocated, prev %04i next %04i\r\n", allocHdr, allocHdr->OffsetToPrev, allocHdr->OffsetToNext);
+#endif
         DebugBreak();
     }
 

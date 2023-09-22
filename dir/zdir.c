@@ -48,11 +48,13 @@ ZDirSortFilesInternal(
     while (TRUE) {
         WORD BreakPoint;
         WORD LastOffset;
+        WORD SizeRequired;
         FILEFINDBUF MidPoint;
         PFILEFINDBUF TempForSwap;
 
         BreakPoint = Count / 2;
-        memcpy(&MidPoint, Files[BreakPoint], sizeof(FILEFINDBUF));
+        SizeRequired = FIELD_OFFSET(FILEFINDBUF, achName) + Files[BreakPoint]->cchName + 1;
+        memcpy(&MidPoint, Files[BreakPoint], SizeRequired);
 
         FirstOffset = 0;
         LastOffset = Count - 1;
@@ -165,6 +167,7 @@ ZDirSortFiles(
     }
 
     if (Index != Count - 1) {
+        printf("Strings not sorted\r\n");
         DebugBreak();
     }
 }
@@ -295,8 +298,8 @@ ZDirPasteStrAndPad (
 WORD
 ZDirCollectFiles(
     PSZ UserSearchCriteria,
-    PVOID Pool,
     PFILEFINDBUF * SortTable,
+    PUCHAR DriveNumber,
     PWORD FilesFound
     )
 {
@@ -315,6 +318,18 @@ ZDirCollectFiles(
     FileCount = 0;
     SearchCriteria = UserSearchCriteria;
     Result = 0;
+
+    *DriveNumber = 0;
+    if ((SearchCriteria[0] >= 'A' && SearchCriteria[0] <= 'Z') &&
+        SearchCriteria[1] == ':') {
+
+        *DriveNumber = SearchCriteria[0] - 'A' + 1;
+
+    } else if ((SearchCriteria[0] >= 'a' && SearchCriteria[0] <= 'z') &&
+        SearchCriteria[1] == ':') {
+
+        *DriveNumber = SearchCriteria[0] - 'a' + 1;
+    }
 
     while(TRUE) {
         DirHandle = 1;
@@ -373,7 +388,7 @@ ZDirCollectFiles(
             break;
         }
 
-        SearchCriteria = HugePoolAlloc(Pool, Index + sizeof("\\*.*"));
+        SearchCriteria = malloc(Index + sizeof("\\*.*"));
         if (SearchCriteria == NULL) {
             printf("out of memory\r\n");
             Result = 1;
@@ -384,7 +399,7 @@ ZDirCollectFiles(
     }
 
     if (SearchCriteria != UserSearchCriteria) {
-        HugePoolFree(SearchCriteria);
+        free(SearchCriteria);
     }
 
     if (Result != 0) {
@@ -394,7 +409,7 @@ ZDirCollectFiles(
 
     do {
         SizeRequired = FIELD_OFFSET(FILEFINDBUF, achName) + StackFileBuf.cchName + 1;
-        HeapFileBuf = HugePoolAlloc(Pool, SizeRequired);
+        HeapFileBuf = malloc(SizeRequired);
         if (HeapFileBuf == NULL) {
             printf("out of memory\r\n");
             Result = 1;
@@ -419,17 +434,20 @@ ZDirCollectFiles(
 BOOL
 ZDirFileSizeToString(
     PUCHAR String,
-    DWORD FileSize
+    DWORD FileSize,
+    UCHAR SuffixShift
     )
 {
-    UCHAR Suffixes[] = {'b', 'k', 'm'};
+    UCHAR Suffixes[] = {'b', 'k', 'm', 'g', 't', '?'};
     WORD SuffixLevel = 0;
     WORD LengthInChars;
     DWORD Size;
     DWORD OldSize;
 
     Size = FileSize;
+    SuffixLevel = SuffixShift;
     OldSize = Size;
+
 
     while (Size > 9999) {
         SuffixLevel++;
@@ -510,6 +528,7 @@ ZDirIsPharLap(VOID)
 WORD
 ZDirGenerateSummary(
     PZDIR_FMTCHAR Line,
+    UCHAR DriveNumber,
     PFILEFINDBUF * SortTable,
     WORD FileCount
     )
@@ -521,6 +540,8 @@ ZDirGenerateSummary(
     WORD StrLen;
     UCHAR Str[16];
     DWORD TotalUsed;
+    DWORD BytesPerAllocationUnit;
+    UCHAR SuffixShift;
     PFILEFINDBUF fb;
     FSALLOCATE FsSpace;
 
@@ -571,7 +592,7 @@ ZDirGenerateSummary(
     StrLen = sizeof(", ") - 1;
     ZDirPasteStrAndPad(&Line[LineIndex], ", ", 0x7, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
-    ZDirFileSizeToString(Str, TotalUsed);
+    ZDirFileSizeToString(Str, TotalUsed, 0);
     StrLen = 5;
     ZDirPasteStrAndPad(&Line[LineIndex], Str, 0xE, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
@@ -579,14 +600,26 @@ ZDirGenerateSummary(
     ZDirPasteStrAndPad(&Line[LineIndex], " used, ", 0x7, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
 
-    // MSFIX This might not be the right device
-    DosQFSInfo(0, 1, &FsSpace, sizeof(FsSpace));
+    DosQFSInfo(DriveNumber, 1, &FsSpace, sizeof(FsSpace));
 
-    TotalUsed = FsSpace.TotalAllocationUnits *
-                FsSpace.SectorsPerAllocationUnit *
-                FsSpace.BytesPerSector;
+    //
+    //  Free space is returned with two 32 bit numbers and a 16 bit number.
+    //  It looks like the system intended to support free space larger than
+    //  32 bits.  Calculate a 32 bit allocation unit size, and see if it
+    //  is a multiple of kilobytes.  If so, we can reclaim 10 bits here and
+    //  use them to describe larger amounts of disk space.
+    //
 
-    ZDirFileSizeToString(Str, TotalUsed);
+    SuffixShift = 0;
+    BytesPerAllocationUnit = FsSpace.SectorsPerAllocationUnit * FsSpace.BytesPerSector;
+    while (BytesPerAllocationUnit >= 1024) {
+        BytesPerAllocationUnit = BytesPerAllocationUnit / 1024;
+        SuffixShift++;
+    }
+
+    TotalUsed = FsSpace.TotalAllocationUnits * BytesPerAllocationUnit;
+
+    ZDirFileSizeToString(Str, TotalUsed, SuffixShift);
     StrLen = 5;
     ZDirPasteStrAndPad(&Line[LineIndex], Str, 0xE, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
@@ -594,11 +627,9 @@ ZDirGenerateSummary(
     ZDirPasteStrAndPad(&Line[LineIndex], " vol size, ", 0x7, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
 
-    TotalUsed = FsSpace.AllocationUnitsAvailable *
-                FsSpace.SectorsPerAllocationUnit *
-                FsSpace.BytesPerSector;
+    TotalUsed = FsSpace.AllocationUnitsAvailable * BytesPerAllocationUnit;
 
-    ZDirFileSizeToString(Str, TotalUsed);
+    ZDirFileSizeToString(Str, TotalUsed, SuffixShift);
     StrLen = 5;
     ZDirPasteStrAndPad(&Line[LineIndex], Str, 0xE, StrLen, StrLen);
     LineIndex = LineIndex + StrLen;
@@ -624,6 +655,7 @@ WORD
 ZDirDisplayFiles(
     PFILEFINDBUF * SortTable,
     WORD FileCount,
+    UCHAR DriveNumber,
     BOOL PauseEnabled
     )
 {
@@ -742,7 +774,7 @@ ZDirDisplayFiles(
                 Attr = 0xd;
             } else {
                 FileSizeString[1] = '\0';
-                ZDirFileSizeToString(&FileSizeString[1], fb->cbFile);
+                ZDirFileSizeToString(&FileSizeString[1], fb->cbFile, 0);
                 Attr = 0xe;
             }
             ZDirPasteStrAndPad(&Line[CurrentChar + MaxLength], FileSizeString, Attr, 6, 6);
@@ -795,7 +827,7 @@ ZDirDisplayFiles(
     ZDirWrite(Line, Index);
     ZDirNewline(&CursorRow, &ModeInfo);
 
-    Index = ZDirGenerateSummary(Line, SortTable, FileCount);
+    Index = ZDirGenerateSummary(Line, DriveNumber, SortTable, FileCount);
     if (Index > 0) {
         ZDirWrite(Line, Index);
 
@@ -813,14 +845,13 @@ ZDirDisplayFiles(
 
 VOID
 ZDirFreeFiles(
-    PVOID Pool,
     PFILEFINDBUF * SortTable,
     WORD FileCount
     )
 {
     WORD Index;
     for (Index = 0; Index < FileCount; Index++) {
-        HugePoolFree(SortTable[Index]);
+        free(SortTable[Index]);
         SortTable[Index] = NULL;
     }
 }
@@ -882,18 +913,13 @@ main(
 {
     WORD FilesFound;
     PFILEFINDBUF * SortTable;
-    PVOID Pool;
     WORD ArgIndex;
     PSZ Arg;
     WORD Result;
     WORD StartArg;
+    UCHAR DriveNumber;
     BOOL OutputGenerated;
     BOOL PauseEnabled;
-
-    Pool = HugePoolAllocNewPool(1ul * 1024 * 1024);
-    if (Pool == NULL) {
-        return 1;
-    }
 
     PauseEnabled = TRUE;
 
@@ -903,11 +929,9 @@ main(
         if (ZDirIsCommandLineOptionChar(Arg[0])) {
             if (stricmp(&Arg[1], "?") == 0) {
                 ZDirHelp();
-                HugePoolFreePool(Pool);
                 return Result;
             } else if (stricmp(&Arg[1], "license") == 0) {
                 ZDirLicense();
-                HugePoolFreePool(Pool);
                 return Result;
             } else if (stricmp(&Arg[1], "p") == 0) {
                 PauseEnabled = TRUE;
@@ -919,7 +943,7 @@ main(
         }
     }
 
-    SortTable = HugePoolAlloc(Pool, ZDIR_MAX_FILES * sizeof(PFILEFINDBUF));
+    SortTable = malloc(ZDIR_MAX_FILES * sizeof(PFILEFINDBUF));
     if (SortTable == NULL) {
         return 1;
     }
@@ -952,30 +976,29 @@ main(
 
         OutputGenerated = TRUE;
 
-        Result = ZDirCollectFiles(Arg, Pool, SortTable, &FilesFound);
+        Result = ZDirCollectFiles(Arg, SortTable, &DriveNumber, &FilesFound);
         if (Result != NO_ERROR) {
             break;
         }
 
         ZDirSortFiles(SortTable, FilesFound, 1);
-        Result = ZDirDisplayFiles(SortTable, FilesFound, PauseEnabled);
+        Result = ZDirDisplayFiles(SortTable, FilesFound, DriveNumber, PauseEnabled);
         if (Result != NO_ERROR) {
             break;
         }
 
-        ZDirFreeFiles(Pool, SortTable, FilesFound);
+        ZDirFreeFiles(SortTable, FilesFound);
         FilesFound = 0;
 
         ArgIndex++;
     } while (ArgIndex < argc);
 
     if (FilesFound > 0) {
-        ZDirFreeFiles(Pool, SortTable, FilesFound);
+        ZDirFreeFiles(SortTable, FilesFound);
         FilesFound = 0;
     }
 
-    HugePoolFree(SortTable);
-    HugePoolFreePool(Pool);
+    free(SortTable);
 
     return Result;
 }
