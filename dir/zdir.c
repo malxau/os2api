@@ -136,7 +136,6 @@ ZDirSortFiles(
     )
 {
     WORD FirstOffset;
-    WORD Index;
 
     if (Count <= 1) {
         return;
@@ -156,20 +155,6 @@ ZDirSortFiles(
             ZDirSortFiles(&Files[FirstOffset], Count - FirstOffset, Depth + 1);
         }
     }
-
-    //
-    //  Check that it's now sorted
-    //
-    for (Index = 0; Index < Count - 1; Index++) {
-        if (stricmp(Files[Index]->achName, Files[Index + 1]->achName) > 0) {
-            break;
-        }
-    }
-
-    if (Index != Count - 1) {
-        printf("Strings not sorted\r\n");
-        DebugBreak();
-    }
 }
 
 typedef struct _ZDIR_FMTCHAR {
@@ -182,23 +167,19 @@ typedef ZDIR_FMTCHAR FAR* PZDIR_FMTCHAR;
 BOOL
 ZDirWrite (
     PZDIR_FMTCHAR str,
-    WORD count
+    WORD count,
+    WORD cursorRow
     )
 {
     WORD i, j;
-    WORD CursorRow;
-    WORD CursorColumn;
     UCHAR CacheAttr;
     UCHAR CharCache[64];
     HVIO hvio;
     WORD Err;
+    WORD cursorColumn;
 
     hvio = 0;
-
-    Err = VioGetCurPos(&CursorRow, &CursorColumn, hvio);
-    if (Err != NO_ERROR) {
-        return FALSE;
-    }
+    cursorColumn = 0;
 
     //
     //  We firstly load as much as we can into a stack buffer, then write it
@@ -218,11 +199,11 @@ ZDirWrite (
         if ((i + 1 < count && CacheAttr != str[i + 1].Attr) ||
             (j >= sizeof(CharCache)/sizeof(CharCache[0]))) {
 
-            Err = VioWrtCharStrAtt(CharCache, j, CursorRow, CursorColumn, &CacheAttr, hvio);
+            Err = VioWrtCharStrAtt(CharCache, j, cursorRow, cursorColumn, &CacheAttr, hvio);
             if (Err != NO_ERROR) {
                 return FALSE;
             }
-            CursorColumn = CursorColumn + j;
+            cursorColumn = cursorColumn + j;
             j = 0;
         }
     }
@@ -232,7 +213,7 @@ ZDirWrite (
     //
 
     if (j > 0) {
-        Err = VioWrtCharStrAtt(CharCache, j, CursorRow, CursorColumn, &CacheAttr, hvio);
+        Err = VioWrtCharStrAtt(CharCache, j, cursorRow, cursorColumn, &CacheAttr, hvio);
         if (Err != NO_ERROR) {
             return FALSE;
         }
@@ -248,26 +229,47 @@ ZDirNewline(
 )
 {
     WORD Line;
-    WORD BlankCell;
     HVIO hvio;
 
     hvio = 0;
     Line = *CursorLine;
-
-    //
-    //  VIO functions don't scroll the viewport.  Check if we're at the
-    //  bottom and if so, scroll the viewport up.
-    //
-
     Line++;
-    if (Line >= ModeInfo->wRow) {
-        BlankCell = 0x07 << 8 | ' ';
-        VioScrollUp(0, 0, Line - 1, ModeInfo->wColumn - 1, 1, &BlankCell, hvio);
-        Line--;
-    }
     VioSetCurPos(Line, 0, hvio);
     *CursorLine = Line;
 
+    return TRUE;
+}
+
+BOOL
+ZDirScrollForMoreRows(
+    PVIOMODEINFO ModeInfo,
+    PWORD CursorRow,
+    WORD RowsToDisplay
+)
+{
+    WORD RowsAvailableOnScreen;
+    WORD RowsToScroll;
+    WORD Line;
+    WORD BlankCell;
+    HVIO hvio;
+
+    hvio = 0;
+    Line = *CursorRow;
+    RowsAvailableOnScreen = ModeInfo->wRow - Line;
+    RowsToScroll = 0;
+
+    if (RowsToDisplay > RowsAvailableOnScreen) {
+        if (RowsToDisplay >= Line) {
+            RowsToScroll = Line;
+        } else {
+            RowsToScroll = RowsToDisplay;
+        }
+        BlankCell = 0x07 << 8 | ' ';
+        VioScrollUp(0, 0, Line - 1, ModeInfo->wColumn - 1, RowsToScroll, &BlankCell, hvio);
+        Line = Line - RowsToScroll;
+        VioSetCurPos(Line, 0, hvio);
+        *CursorRow = Line;
+    }
     return TRUE;
 }
 
@@ -721,6 +723,13 @@ ZDirDisplayFiles(
     BufferRows = (FileCount + Columns - 1) / Columns;
 
     //
+    //  In addition to rows containing files, we have two grid lines and
+    //  a summary line.
+    //
+
+    ZDirScrollForMoreRows(&ModeInfo, &CursorRow, BufferRows + 3);
+
+    //
     //  Draw the top grid line.
     //
 
@@ -734,7 +743,7 @@ ZDirDisplayFiles(
         Line[Index].Attr = ZDIR_GRID_COLOR;
     }
 
-    ZDirWrite(Line, Index);
+    ZDirWrite(Line, Index, CursorRow);
     ZDirNewline(&CursorRow, &ModeInfo);
 
     GridCellCount = BufferRows * Columns;
@@ -784,24 +793,34 @@ ZDirDisplayFiles(
 
         ActiveColumn++;
         if (ActiveColumn % Columns == 0) {
-            ZDirWrite(Line, CurrentChar);
+            WORD LinesRemaining;
+            LinesRemaining = BufferRows - (Index / Columns) + 2;
+            ZDirWrite(Line, CurrentChar, CursorRow);
             CurrentChar = 0;
             ActiveColumn = 0;
             ZDirNewline(&CursorRow, &ModeInfo);
             LinesThisPage++;
-            if (PauseEnabled && (LinesThisPage == ModeInfo.wRow - 1)) {
-                WORD StrLen;
-                KBDKEYINFO CharData;
-                StrLen = sizeof("Press any key to continue...") - 1;
-                ZDirPasteStrAndPad(Line, "Press any key to continue...", 0xD, StrLen, StrLen);
-                ZDirWrite(Line, StrLen);
-                VioSetCurPos(CursorRow, StrLen, hvio);
-                KbdCharIn(&CharData, 0, 0);
-                if (CharData.cChar == 'q') {
-                    return NO_ERROR;
+            if (LinesThisPage == ModeInfo.wRow - 1) {
+                if (PauseEnabled) {
+                    WORD StrLen;
+                    KBDKEYINFO CharData;
+                    StrLen = sizeof("Press any key to continue...") - 1;
+                    ZDirPasteStrAndPad(Line, "Press any key to continue...", 0xD, StrLen, StrLen);
+                    ZDirWrite(Line, StrLen, CursorRow);
+                    VioSetCurPos(CursorRow, StrLen, hvio);
+                    KbdCharIn(&CharData, 0, 0);
+                    if (CharData.cChar == 'q') {
+                        return NO_ERROR;
+                    }
+
+                    //
+                    //  Pretend the cursor is on the next line so this
+                    //  message is included in the text that gets scrolled
+                    //
+                    CursorRow = CursorRow + 1;
                 }
                 LinesThisPage = 0;
-                ZDirNewline(&CursorRow, &ModeInfo);
+                ZDirScrollForMoreRows(&ModeInfo, &CursorRow, LinesRemaining);
             }
         } else {
             Line[CurrentChar].Char = ZDirLineElements[ZDIR_LINE_ELEMENT_VERT];
@@ -824,12 +843,12 @@ ZDirDisplayFiles(
         Line[Index].Attr = ZDIR_GRID_COLOR;
     }
 
-    ZDirWrite(Line, Index);
+    ZDirWrite(Line, Index, CursorRow);
     ZDirNewline(&CursorRow, &ModeInfo);
 
     Index = ZDirGenerateSummary(Line, DriveNumber, SortTable, FileCount);
     if (Index > 0) {
-        ZDirWrite(Line, Index);
+        ZDirWrite(Line, Index, CursorRow);
 
         //
         //  Move the cursor to after the summary on the same line.  This

@@ -1,8 +1,7 @@
 ;
-; BIGDIV.ASM
+; BIGSHR.ASM
 ;
-; Implementation for for signed and unsigned division of a 32 bit integer
-; by a 16 bit integer.
+; Implementation for for signed and unsigned right shift of a 32 bit integer.
 ;
 ; Copyright (c) 2017-2023 Malcolm J. Smith
 ;
@@ -25,59 +24,67 @@
 ; THE SOFTWARE.
 ;
 
-.MODEL large, pascal, FARSTACK, OS_OS2
-
+.MODEL large, pascal
 .CODE
 
-
-public __aFuldiv
-__aFuldiv proc
-
-push bp
-mov bp, sp
-
 ; DWORD [High DX, Low AX]
-; __aFuldiv(
-;     DWORD Dividend, [High BP + 8, Low BP + 6],
-;     DWORD Divisor [High BP + 12, Low BP + 10]
+; __aFulshr(
+;     DWORD Value, [High DX, Low AX]
+;     WORD Shift [CL]
 ; );
 
-; This implementation doesn't support 32 bit divisors.  If one is specified,
-; fail.
+public __aFulshr
+__aFulshr proc
 
-mov ax, [bp + 12]
-test ax, ax
-jnz auldiv_overflow
+; If the shift is for more than 32 bits, all the data would be gone, so
+; return zero.  If the shift is for more than 16 bits, the high 16 bits
+; of the result must be zero, and the low 16 bits contains the high 16
+; bits of input after shifting.  If the shift is less than 16 bits, then
+; both components must be shifted with bits carried between the two.
+
+cmp cl,32
+jae ulshr_no_shift
+cmp cl,16
+jae ulshr_long_shift
 
 push bx
-
-; Divide the high 16 bits by the low 16 bits, save it in bx,
-; and leave the remainder in dx.  Then, divide the low 16 bits
-; plus the remainder, which must fit in a 16 bit value.  To satisfy
-; the calling convention, move bx to dx, and return.
-
-mov cx, [bp + 10]
-xor dx, dx
-mov ax, [bp + 8]
-div cx
-mov bx, ax
-mov ax, [bp + 6]
-div cx
-mov dx, bx
+mov bx, dx
+shr ax, cl
+shr dx, cl
+sub cl, 16
+neg cl
+shl bx, cl
+or ax, bx
 pop bx
-mov sp, bp
-pop bp
-ret 8
+ret
 
-auldiv_overflow:
-int 3
+ulshr_long_shift:
+sub cl, 16
+shr dx, cl
+mov ax, dx
 xor dx, dx
-xor ax, ax
-mov sp, bp
-pop bp
-ret 8
+ret
 
-__aFuldiv endp
+ulshr_no_shift:
+xor ax, ax
+xor dx, dx
+ret
+
+__aFulshr endp
+
+; DWORD [High DX, Low AX]
+; _aFlshr(
+;     DWORD Value, [High DX, Low AX]
+;     WORD Shift [CL]
+; );
+
+; It's not clear to me what the meaning of a signed bitshift is, but for now
+; give it to the unsigned implementation.
+
+public __aFlshr
+__aFlshr proc
+jmp __aFulshr
+__aFlshr endp
 
 
 ; "Assignment" function that just does the above and puts the result in a
@@ -85,34 +92,34 @@ __aFuldiv endp
 ; The compiler is smart enough to know that ds is initialized, so it can
 ; invoke the "near" version of code in a purely far model program.
 
-public __aFNauldiv
-__aFNauldiv proc
+public __aFNaulshr
+__aFNaulshr proc
 
 push bp
 mov bp, sp
 
 ; VOID
-; __aFNauldiv(
-;     DWORD __near * Dividend, [BP + 6],
-;     DWORD Divisor [High BP + 10, Low BP + 8]
+; __aFNaulshr(
+;     DWORD __near * Value, [BP + 6],
+;     WORD ShiftCount [BP + 8]
 ; );
 
+push bx
 mov bx, [bp + 6]
-push [bp + 10]
-push [bp + 8]
-push [bx + 2]
-push [bx]
+mov ax, [bx]
+mov dx, [bx + 2]
+mov cx, [bp + 8]
 
-call __aFuldiv
+call __aFulshr
 
 mov [bx + 2], dx
 mov [bx], ax
 
+pop bx
 mov sp, bp
 pop bp
-ret 6
+ret 4
 
-__aFNauldiv endp
-
+__aFNaulshr endp
 
 END

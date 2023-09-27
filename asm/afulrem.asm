@@ -25,7 +25,7 @@
 ; THE SOFTWARE.
 ;
 
-.MODEL large, pascal, FARSTACK, OS_OS2
+.MODEL large, pascal
 
 .CODE
 

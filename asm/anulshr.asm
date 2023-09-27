@@ -24,17 +24,17 @@
 ; THE SOFTWARE.
 ;
 
-.MODEL large, pascal, FARSTACK, OS_OS2
+.MODEL small, pascal
 .CODE
 
 ; DWORD [High DX, Low AX]
-; __aFulshr(
+; __aNulshr(
 ;     DWORD Value, [High DX, Low AX]
 ;     WORD Shift [CL]
 ; );
 
-public __aFulshr
-__aFulshr proc
+public __aNulshr
+__aNulshr proc
 
 ; If the shift is for more than 32 bits, all the data would be gone, so
 ; return zero.  If the shift is for more than 16 bits, the high 16 bits
@@ -70,10 +70,10 @@ xor ax, ax
 xor dx, dx
 ret
 
-__aFulshr endp
+__aNulshr endp
 
 ; DWORD [High DX, Low AX]
-; _aFlshr(
+; _aNlshr(
 ;     DWORD Value, [High DX, Low AX]
 ;     WORD Shift [CL]
 ; );
@@ -81,10 +81,10 @@ __aFulshr endp
 ; It's not clear to me what the meaning of a signed bitshift is, but for now
 ; give it to the unsigned implementation.
 
-public __aFlshr
-__aFlshr proc
-jmp __aFulshr
-__aFlshr endp
+public __aNlshr
+__aNlshr proc
+jmp __aNulshr
+__aNlshr endp
 
 
 ; "Assignment" function that just does the above and puts the result in a
@@ -92,25 +92,25 @@ __aFlshr endp
 ; The compiler is smart enough to know that ds is initialized, so it can
 ; invoke the "near" version of code in a purely far model program.
 
-public __aFNaulshr
-__aFNaulshr proc
+public __aNNaulshr
+__aNNaulshr proc
 
 push bp
 mov bp, sp
 
 ; VOID
-; __aFNaulshr(
-;     DWORD __near * Value, [BP + 6],
-;     WORD ShiftCount [BP + 8]
+; __aNNaulshr(
+;     DWORD __near * Value, [BP + 4],
+;     WORD ShiftCount [BP + 6]
 ; );
 
 push bx
-mov bx, [bp + 6]
+mov bx, [bp + 4]
 mov ax, [bx]
 mov dx, [bx + 2]
-mov cx, [bp + 8]
+mov cx, [bp + 6]
 
-call __aFulshr
+call __aNulshr
 
 mov [bx + 2], dx
 mov [bx], ax
@@ -120,6 +120,6 @@ mov sp, bp
 pop bp
 ret 4
 
-__aFNaulshr endp
+__aNNaulshr endp
 
 END

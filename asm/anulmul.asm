@@ -1,11 +1,10 @@
 ;
-; STARTUP0.ASM
+; BIGMUL.ASM
 ;
-; Initial program entry point.  In OS/2 it looks like this has to be
-; assembly because core state is initialized in registers.  This tried to
-; save that and get to C as quickly as possible.
+; Implementation for for signed and unsigned multiplication of a 32 bit integer
+; by a 32 bit integer.
 ;
-; Copyright (c) 2023 Malcolm J. Smith
+; Copyright (c) 2017-2023 Malcolm J. Smith
 ;
 ; Permission is hereby granted, free of charge, to any person obtaining a copy
 ; of this software and associated documentation files (the "Software"), to deal
@@ -26,45 +25,48 @@
 ; THE SOFTWARE.
 ;
 
-.MODEL MemModel, pascal
-
-.DOSSEG
-
-__startup PROTO FAR PASCAL
-
-.DATA
-public __acrtused
-__acrtused = 1234h
-_EnvSelector    WORD ?
-_CmdlineOffset  WORD ?
-_DataSegSize    WORD ?
-
-.STACK 6144
+.MODEL small, pascal
 
 .CODE
-startup:
-; OS/2 Arguments
-; AX Selector of environment
-; BX Command line offset within environment selector
-; CX Size of data segment
 
-mov [_EnvSelector], AX
-mov [_CmdlineOffset], BX
-mov [_DataSegSize], CX
+public __aNulmul
+__aNulmul proc
 
-call __startup
+push bp
+mov bp, sp
 
-; C code is responsible for exiting the process - execution should
-; not get here
+; DWORD [High DX, Low AX]
+; __aNulmul(
+;     DWORD Value1, [High BP + 6, Low BP + 4],
+;     DWORD Value2 [High BP + 10, Low BP + 8]
+; );
 
-public GetCommandLine
-GetCommandLine proc
+; Multiply low by high of both components, adding them into a temporary
+; register.  Multiply low by low, which might result in a high component,
+; and add back the temporary result into this high component.
 
-mov dx, [_EnvSelector]
-mov ax, [_CmdlineOffset]
+push bx
 
-ret
+mov ax, [bp + 4]
+mov dx, [bp + 10]
+mul dx
+mov bx, ax
 
-GetCommandLine endp
+mov ax, [bp + 8]
+mov dx, [bp + 6]
+mul dx
+add bx, ax
 
-END startup
+mov ax, [bp + 4]
+mov dx, [bp + 8]
+mul dx
+add dx, bx
+
+pop bx
+mov sp, bp
+pop bp
+
+ret 8
+__aNulmul endp
+
+END

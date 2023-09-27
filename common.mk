@@ -27,8 +27,8 @@ ML=
 BIND=
 !ENDIF
 
-CFLAGS=-nologo -AL -Gs -Gq -W3 -WX -I..\inc -I..\asm -I..\crt
-MLFLAGS=-nologo -Zi -Zd
+CFLAGS=-nologo -AC -Gs -Gq -W3 -WX -I..\inc -I..\asm -I..\crt
+MLFLAGS=-nologo -Zi -Zd -DMemModel=compact
 LIBFLAGS=/nologo
 IMPLIBFLAGS=/nologo
 LDFLAGS=/nologo /nodefaultlibrarysearch
@@ -36,7 +36,7 @@ LDFLAGS=/nologo /nodefaultlibrarysearch
 !IF $(DEBUG)==1
 CFLAGS=$(CFLAGS) -Od
 !ELSE
-CFLAGS=$(CFLAGS) -Os
+CFLAGS=$(CFLAGS) -Os /f-
 !ENDIF
 
 !IF $(PDB)==1
