@@ -24,7 +24,11 @@
  * THE SOFTWARE.
  */
 
-#include <os2asm.h>
+VOID APIENTRY
+DebugBreak();
+
+#define SelToFarPtr(selector) (PVOID)((DWORD)(selector) << 16)
+#define FarPtrToSel(ptr) (SEL)((DWORD)(ptr) >> 16)
 
 PVOID
 malloc(
@@ -36,7 +40,7 @@ free(
     PVOID ptr
     );
 
-int
+int CDECL
 sprintf_s(
     PSZ szDest,
     WORD len,
@@ -44,20 +48,20 @@ sprintf_s(
     ...
     );
 
-int
+int CDECL
 sprintf(
     PSZ szDest,
     PSZ szFmt,
     ...
     );
 
-int
+int CDECL
 sprintf_sz(
     PSZ szFmt,
     ...
     );
 
-int
+int CDECL
 printf(
     PSZ szFmt,
     ...

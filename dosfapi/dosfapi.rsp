@@ -1,0 +1,5 @@
+DOSFAPI
+y
++asm\dosasm.lib +dosfapi.obj
+DOSFAPI.MAP
+DOSFAPI.LIB

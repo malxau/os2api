@@ -1,0 +1,5 @@
+DOSASM
+y
++cursor.obj +dosexit.obj +dosfind.obj +doswrite.obj +keybrd.obj +qfsinfo.obj +segalloc.obj +scrollup.obj +startup0.obj +vidmode.obj +wrtchrat.obj
+DOSASM.MAP
+DOSASM.LIB

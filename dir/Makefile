@@ -1,17 +1,25 @@
-all: zdir.exe
+all: bzdir.exe dzdir.exe ozdir.exe szdir.exe
 
 !INCLUDE "..\common.mk"
 
-zdiros2.exe: zdir.obj $(DEPS)
-    @echo $@
-    @$(LINK) $(LDFLAGS) zdir.obj,zdiros2.exe,zdiros2.map,..\crt\os2crt.lib ..\lib\os2.lib,zdir.def
+ozdir.exe: zdir.obj $(OS2LIBS)
+	@echo $@
+	@$(LINK) $(LDFLAGS) zdir.obj,ozdir.exe,ozdir.map,$(OS2LIBS) ..\lib\os2.lib,zdir.def
+
+dzdir.exe: zdir.obj $(DOSLIBS)
+	@echo $@
+	@$(LINK) $(LDFLAGS) /cp:1 zdir.obj,dzdir.exe,dzdir.map,$(DOSLIBS) ..\crt\os2crt.lib $(BINDLIBS),NUL
+
+szdir.exe: zdir.obj $(OS2LIBS) dzdir.exe
+	@echo $@
+	@$(LINK) $(LDFLAGS) zdir.obj,szdir.exe,szdir.map,$(OS2LIBS) ..\lib\os2.lib,szdir.def
 
 !IF "$(BIND)"!=""
-zdir.exe: zdiros2.exe
-    @echo $@
-    @$(BIND) /nologo zdiros2.exe ..\dos\dosbind.lib /m zdir.map /o zdir.exe
+bzdir.exe: ozdir.exe
+	@echo $@
+	@$(BIND) /nologo ozdir.exe $(BINDLIBS) /m bzdir.map /o bzdir.exe
 !ELSE
-zdir.exe: zdiros2.exe
-    @echo $@ (copy binary)
-    @copy zdiros2.exe $@
+bzdir.exe: szdir.exe
+	@echo $@ (copy binary)
+	@copy szdir.exe $@
 !ENDIF

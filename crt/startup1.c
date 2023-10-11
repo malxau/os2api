@@ -221,30 +221,21 @@ VOID APIENTRY __startup()
 
     {
         PSZ programName;
-        WORD charIndex;
+        PSZ commandArgs;
 
-        //
-        //  The command line buffer appears to consist of a NULL terminated
-        //  program string followed by a NULL terminated argument string.
-        //  Argv[0] can be taken from the first string.  The second string
-        //  needs to be parsed for spaces and split into different components.
-        //
+        programName = GetProgramName();
+        commandArgs = GetCommandArgs();
 
-        programName = GetCommandLine();
-        charIndex = 0;
-
-        for (;programName[charIndex] != '\0'; programName++);
-        charIndex++;
-
-        argv = CmdlineToArgcArgv(programName, &programName[charIndex], (WORD)-1, &argc);
-
+        argv = CmdlineToArgcArgv(programName, commandArgs, (WORD)-1, &argc);
         if (argv == NULL) {
             DosExit(EXIT_PROCESS, 255);
         }
     }
 
     exitCode = main(argc, argv);
-    free(argv);
+    if (argv != NULL) {
+        free(argv);
+    }
     malloc_cleanup();
     DosExit(EXIT_PROCESS, exitCode);
 }

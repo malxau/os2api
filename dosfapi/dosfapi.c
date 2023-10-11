@@ -1,7 +1,7 @@
 /**
- * @file crt/crtpriv.h
+ * @file dos/dosfapi.c
  *
- * Private declarations not intended for use outside the CRT module.
+ * DOS functions to implement the OS/2 Family API.
  *
  * Copyright (c) 2023 Malcolm J. Smith
  *
@@ -23,78 +23,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-WORD CDECL
-main(
-    WORD argc,
-    PSZ argv[]
-    );
-
-PSZ APIENTRY
-GetProgramName();
-
-PSZ APIENTRY
-GetCommandArgs();
-
-PVOID
-HugePoolAllocNewPool(VOID);
-
-VOID
-HugePoolFreePool(
-    PVOID pool
-    );
-
-VOID
-HugePoolDump(
-    PVOID pool
-    );
-
-PVOID
-HugePoolAlloc(
-    PVOID pool,
-    WORD sizeInBytes
-    );
-
-VOID
-HugePoolFree(
-    PVOID ptr
-    );
-
-PVOID
-SmallPoolAllocNewPool(
-    WORD requestedBytes
-    );
-
-VOID
-SmallPoolFreePool(
-    PVOID pool
-    );
-
-BOOL
-SmallPoolFreePoolIfEmpty(
-    PVOID pool
-    );
-
-VOID
-SmallPoolDump(
-    PVOID pool
-    );
-
-PVOID
-SmallPoolAlloc(
-    PVOID pool,
-    WORD sizeInBytes
-    );
-
-VOID
-SmallPoolFree(
-    PVOID ptr
-    );
-
-BOOL
-malloc_init(VOID);
-
-VOID
-malloc_cleanup(VOID);
+#include <os2.h>
 
 // vim:sw=4:ts=4:et:

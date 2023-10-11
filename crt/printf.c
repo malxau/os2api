@@ -33,7 +33,7 @@
 #define PRINTF_SIZEONLY 1
 #include "printf.inc"
 
-int
+int CDECL
 sprintf_s(
     PSZ szDest,
     WORD len,
@@ -50,7 +50,7 @@ sprintf_s(
     return out_len;
 }
 
-int
+int CDECL
 sprintf(
     PSZ szDest,
     PSZ szFmt,
@@ -66,7 +66,7 @@ sprintf(
     return out_len;
 }
 
-int
+int CDECL
 sprintf_sz(
     PSZ szFmt,
     ...
@@ -81,7 +81,7 @@ sprintf_sz(
     return out_len;
 }
 
-int
+int CDECL
 printf(
     PSZ szFmt,
     ...

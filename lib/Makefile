@@ -9,7 +9,7 @@ INPUTLIBS = doscalls.lib kbdcalls.lib nls.lib viocalls.lib
 os2.lib: $(INPUTLIBS) os2.rsp
     @echo $@
     @erase $@ 2>NUL
-    $(OBJLIB) $(LIBFLAGS) @os2.rsp
+    @$(OBJLIB) $(LIBFLAGS) @os2.rsp
 
 .def.lib:
-    $(IMPLIB) $(IMPLIBFLAGS) /nologo $@ $<
+    @$(IMPLIB) $(IMPLIBFLAGS) /nologo $@ $<

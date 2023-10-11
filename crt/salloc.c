@@ -141,8 +141,8 @@ SmallPoolFreePool(
     if (!SmallPoolIsPoolEmpty(pool)) {
 #if SALLOC_DBG
         printf("alloc: pool %p freed but not empty\r\n", pool);
-#endif
         SmallPoolDump(pool);
+#endif
         DebugBreak();
     }
 

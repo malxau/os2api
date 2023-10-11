@@ -3,4 +3,4 @@
 **/*.map
 asm/*.lib
 crt/*.lib
-!asm/bin/*.obj
+!*/asm/bin/*.obj

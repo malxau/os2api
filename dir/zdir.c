@@ -334,7 +334,7 @@ ZDirCollectFiles(
     }
 
     while(TRUE) {
-        DirHandle = 1;
+        DirHandle = HDIR_SYSTEM;
         FindFirstContext = 1;
         Err = DosFindFirst(SearchCriteria, &DirHandle, FILE_HIDDEN | FILE_SYSTEM | FILE_DIRECTORY, &StackFileBuf, sizeof(StackFileBuf), &FindFirstContext, 0);
         if (Err != NO_ERROR &&
@@ -649,7 +649,7 @@ ZDirGenerateSummary(
 #define ZDIR_LINE_ELEMENT_BOTTOM_T   2
 #define ZDIR_LINE_ELEMENT_VERT       3
 
-UCHAR ZDirLineElements[] = {196, 194, 193, 179};
+const UCHAR ZDirLineElements[] = {196, 194, 193, 179};
 
 #define ZDIR_GRID_COLOR 0x2
 
@@ -689,10 +689,13 @@ ZDirDisplayFiles(
         return Err;
     }
 
+    // printf("\r\n");
     Err = VioGetCurPos(&CursorRow, &CursorColumn, hvio);
     if (Err != NO_ERROR) {
         return Err;
     }
+    // VioSetCurPos(CursorRow - 1, CursorColumn, hvio);
+    // printf("Display %ix%i, Cursor %i, %i\r\n", ModeInfo.wColumn, ModeInfo.wRow, CursorColumn, CursorRow);
 
     LongestDisplayName = 0;
     for (Index = 0; Index < FileCount; Index++) {

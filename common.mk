@@ -27,11 +27,11 @@ ML=
 BIND=
 !ENDIF
 
-CFLAGS=-nologo -AC -Gs -Gq -W3 -WX -I..\inc -I..\asm -I..\crt
+CFLAGS=-nologo -AC -Gs -Gc -Gf -Gq -Gy -W3 -WX -I..\inc -I..\crt
 MLFLAGS=-nologo -Zi -Zd -DMemModel=compact
 LIBFLAGS=/nologo
 IMPLIBFLAGS=/nologo
-LDFLAGS=/nologo /nodefaultlibrarysearch
+LDFLAGS=/nologo /nodefaultlibrarysearch /map:f
 
 !IF $(DEBUG)==1
 CFLAGS=$(CFLAGS) -Od
@@ -44,7 +44,9 @@ CFLAGS=$(CFLAGS) -Z7
 LDFLAGS=$(LDFLAGS) /codeview
 !ENDIF
 
-DEPS=..\asm\os2asm.lib ..\crt\os2crt.lib ..\dos\dosbind.lib
+OS2LIBS=..\os2start\os2start.lib ..\crt\os2crt.lib ..\lib\os2.lib
+DOSLIBS=..\dosfapi\dosfapi.lib ..\crt\os2crt.lib
+BINDLIBS=..\dosbind\dosbind.lib
 
 clean:
 	-@erase *.exe    2>NUL
@@ -53,15 +55,13 @@ clean:
 	-@erase *.lib    2>NUL
 
 .c.obj:
-    @echo $<
-    @$(CC) /c $(CFLAGS) $<
+	@$(CC) /c $(CFLAGS) $<
 
 !IF "$(ML)"!=""
 .asm.obj:
-    @echo $<
-    @$(ML) /c $(MLFLAGS) $<
+	@$(ML) /c $(MLFLAGS) $<
 !ELSE
 .asm.obj:
-    @echo bin\$@ (copy binary)
-    @copy bin\$@ .
+	@echo bin\$@ (copy binary)
+	@copy bin\$@ .
 !ENDIF

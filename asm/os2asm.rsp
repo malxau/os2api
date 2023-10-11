@@ -1,5 +1,0 @@
-OS2ASM
-y
-+startup0.obj +afuldiv.obj +anuldiv.obj +afulmul.obj +anulmul.obj +afulrem.obj +anulrem.obj +afulshl.obj +anulshl.obj +afulshr.obj +anulshr.obj +dbgbrk.obj +sel.obj
-OS2ASM.MAP
-OS2ASM.LIB

@@ -1,0 +1,5 @@
+OS2START
+y
++startup0.obj
+OS2START.MAP
+OS2START.LIB
