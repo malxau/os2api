@@ -362,8 +362,6 @@ mov bp, sp
 
 push bx
 
-int 3h
-
 mov ax, [bp + 6]
 cmp ax, 0ffffh
 je DosFindCloseSuccess
